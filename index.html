@@ -23,24 +23,21 @@
   </head>
   <body onload="initialize()">
     <div id="map_canvas" style="width:512px; height:512px"></div>
-    <img id="tt_canvas" style="width:512px; height:512px" src=""></div>
+    <canvas id="tt_canvas" width="512" height="512" src=""></div>
     <div id="coords">plop</div>
 	    <script type="text/javascript">
 	
 var G = google.maps;
 var proj = new MercatorProjection();
+var TILE_SIZE = 256;
 
-// credits to http://stackoverflow.com/questions/12507274/how-to-get-bounds-of-a-google-static-map
-function getCorners(center,zoom,mapWidth,mapHeight){
-    var scale = Math.pow(2,zoom);
-    var centerPx = proj.fromLatLngToPoint(center);
-    var SWPoint = {x: (centerPx.x -(mapWidth/2)/ scale) , y: (centerPx.y + (mapHeight/2)/ scale)};
-    var SWLatLon = proj.fromPointToLatLng(SWPoint);
-    console.log('SW: ' + SWLatLon);
-    var NEPoint = {x: (centerPx.x +(mapWidth/2)/ scale) , y: (centerPx.y - (mapHeight/2)/ scale)};
-    var NELatLon = proj.fromPointToLatLng(NEPoint);
-    console.log(' NE: '+ NELatLon);
-}
+
+// create a canvas element
+var canvas2 = $("#tt_canvas")[0];
+var context2 = canvas2.getContext('2d');
+// canvas contents will be used for a texture
+var texture2 = new THREE.Texture(canvas2);
+texture2.needsUpdate = true;
 
 function initialize() {
 	var mapOptions = {
@@ -55,15 +52,53 @@ function initialize() {
 		var bounds = map.getBounds();
 		var sw = bounds.getSouthWest();
 		var ne = bounds.getNorthEast();
-		var center = map.getCenter().toString();
+		var center = map.getCenter();
 		var zoom = map.getZoom();
 		$("#coords").text("lat: "+sw.lat()+" to "+ne.lat());
-		$("#tt_canvas").attr("src","http://maps.googleapis.com/maps/api/staticmap?center="+center+"&zoom="+zoom+"&size=512x512&sensor=false&scale=2");
+		//$("#tt_canvas").attr("src","http://maps.googleapis.com/maps/api/staticmap?center="+center+"&zoom="+zoom+"&size=512x512&sensor=false&scale=2");
 		
-		// TODO get per pixel
 		
-		var centerPoint = new G.LatLng(48.86144,2.333981);
-		getCorners(centerPoint,zoom,512,512);
+		var scale = Math.pow(2,zoom);
+		var centerPt = proj.fromLatLngToPoint(center);
+		
+		var lowX = Math.floor(centerPt.x * scale -(512/2));
+		var highX = Math.floor(centerPt.x * scale +(512/2));
+		var lowY = Math.floor(centerPt.y * scale -(512/2));
+		var highY = Math.floor(centerPt.y * scale +(512/2));
+		
+		var lowTileX = Math.floor(lowX / TILE_SIZE);
+		var highTileX = Math.floor(highX / TILE_SIZE) +1;
+		var lowTileY = Math.floor(lowY / TILE_SIZE);
+		var highTileY = Math.floor(highY / TILE_SIZE) +1;
+		
+		var canvasGoogMap = $("#tt_canvas")[0];
+		var contextGoogMap = canvasGoogMap.getContext('2d');
+		console.log("lowX"+lowX);
+		console.log("highX"+highX);
+		console.log("lowTileX"+lowTileX);
+		console.log("highTileX"+highTileX);
+		
+		for ( tileX = lowTileX; tileX < highTileX ; tileX ++){
+			for ( tileY = lowTileY; tileY < highTileY ; tileY ++){
+				(function(){
+					var cornerX = tileX * TILE_SIZE;
+					var cornerY = tileY * TILE_SIZE;
+					var img = document.createElement('img');
+					img.src = "http://mt1.googleapis.com/vt"
+						+ "?x=" + tileX
+						+ "&y=" + tileY
+						+ "&z=" + zoom;
+					img.crossOrigin = "anonymous";
+					
+						console.log(img.src);
+					img.onload = function () {
+						console.log(img.src);
+						contextGoogMap.drawImage(img,cornerX-lowX,cornerY-lowY);
+						texture2.needsUpdate = true;
+					};
+				})();
+			}
+		}
 	});
 }
 
@@ -136,8 +171,8 @@ function init()
 	var canvas1 = document.createElement('canvas');
 	var context1 = canvas1.getContext('2d');
 	context1.font = "Bold 40px Arial";
-	var img=document.getElementById("tt_canvas");
-	//context1.drawImage(img,10,10);
+	var img = document.getElementById("tt_canvas");
+	context1.drawImage(img,10,10);
 	context1.fillStyle = "rgba(255,0,0,0.95)";
     context1.fillText('Hello, world!', 0, 50);
     
@@ -160,23 +195,10 @@ function init()
 	
 	/////// draw image on canvas /////////
 
-	// create a canvas element
-	var canvas2 = document.createElement('canvas');
-	var context2 = canvas2.getContext('2d');
-	// canvas contents will be used for a texture
-	var texture2 = new THREE.Texture(canvas2);
+
 	
 	// load an image
-	var imageObj = new Image();
-	imageObj.crossOrigin = "anonymous";
-	imageObj.src = "http://maps.googleapis.com/maps/api/staticmap?center=48.86144,2.333981&zoom=13&size=512x512&sensor=false&scale=2";
-	// after the image is loaded, this function executes
-	imageObj.onload = function()
-	{  
-		context2.drawImage(imageObj, 0, 0);
-		if ( texture2 ) // checks if texture exists
-			texture2.needsUpdate = true;
-	};  
+
       
     var material2 = new THREE.MeshBasicMaterial( {map: texture2} );
     material2.transparent = true;

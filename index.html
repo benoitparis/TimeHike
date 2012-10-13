@@ -168,6 +168,7 @@ function init()
 	
 	// load an image
 	var imageObj = new Image();
+	imageObj.crossOrigin = "anonymous";
 	imageObj.src = "http://maps.googleapis.com/maps/api/staticmap?center=48.86144,2.333981&zoom=13&size=512x512&sensor=false&scale=2";
 	// after the image is loaded, this function executes
 	imageObj.onload = function()

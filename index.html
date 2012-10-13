@@ -7,7 +7,6 @@
     <style type="text/css">
       html { height: 100% }
       body { height: 100%; margin: 0; padding: 0 }
-      #map_canvas { height: 100% }
     </style>
 	<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.8.2/jquery.min.js"></script>
 	<script src="js/MercatorProjection.js"></script>
@@ -22,15 +21,14 @@
 
   </head>
   <body onload="initialize()">
-    <div id="map_canvas" style="width:512px; height:512px"></div>
-    <canvas id="tt_canvas" width="512" height="512" src=""></div>
-    <div id="coords">plop</div>
+    <div id="map_canvas" style="width:256px; height:256px; position:absolute;top:0px;right:0px;"></div>
+    <canvas id="tt_canvas" width="512" height="512" style="display:none;"></div>
+    <div id="background" style="position:absolute;top:0px;left:0px;z-index: -1;"></div>
 	    <script type="text/javascript">
 	
 var G = google.maps;
 var proj = new MercatorProjection();
 var TILE_SIZE = 256;
-
 
 // create a canvas element
 var canvas2 = $("#tt_canvas")[0];
@@ -39,7 +37,122 @@ var context2 = canvas2.getContext('2d');
 var texture2 = new THREE.Texture(canvas2);
 texture2.needsUpdate = true;
 
+/* 	Three.js  */
+
+// MAIN
+if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+// standard global variables
+var container, scene, camera, renderer, controls, stats;
+var keyboard = new THREEx.KeyboardState();
+var clock = new THREE.Clock();
+// custom global variables
+var cube;
+
+init();
+animate();
+
+// FUNCTIONS 		
+function init() 
+{
+	// SCENE
+	scene = new THREE.Scene();
+	// CAMERA
+	var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
+	var VIEW_ANGLE = 32, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.01, FAR = 200000;
+	camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
+	scene.add(camera);
+	camera.position.set(0,700,450);
+	camera.lookAt(scene.position);	
+	// RENDERER
+	renderer = new THREE.WebGLRenderer( {antialias:true} );
+	renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT-25);
+	container = $("#background")[0];
+	document.body.appendChild( container );
+	container.appendChild( renderer.domElement );
+	// EVENTS
+	THREEx.WindowResize(renderer, camera);
+	THREEx.FullScreen.bindKey({ charCode : 'm'.charCodeAt(0) });
+	// CONTROLS
+	controls = new THREE.OrbitControls( camera );
+	// STATS
+	stats = new Stats();
+	stats.domElement.style.position = 'absolute';
+	stats.domElement.style.bottom = '0px';
+	stats.domElement.style.zIndex = 100;
+	container.appendChild( stats.domElement );
+
+
+	
+	////////////
+	// CUSTOM //
+	////////////
+	
+
+	
+	/////// draw image on canvas /////////
+		  
+		var material2 = new THREE.MeshBasicMaterial( {map: texture2} );
+		material2.transparent = true;
+
+		var mesh2 = new THREE.Mesh(
+			new THREE.PlaneGeometry(canvas2.width, canvas2.height),
+			material2
+		  );
+		mesh2.position.set(0,-10,0);
+		mesh2.rotation.x = - Math.PI / 2;
+		mesh2.doubleSided = true;
+		scene.add( mesh2 );
+		
+		var axes = new THREE.AxisHelper();
+		axes.scale.set( 1, 1, 1 );
+		scene.add( axes );
+
+	
+
+}
+
+function drawToCanvas(src, posX, posY){
+	// load an image
+		var imageObj = new Image();
+		imageObj.crossOrigin = "anonymous";
+		imageObj.src = src;
+		// after the image is loaded, this function executes
+		imageObj.onload = function()
+		{  
+			context2.drawImage(imageObj, posX, posY);
+			if ( texture2 ) // checks if texture exists
+				texture2.needsUpdate = true;
+		};  
+
+}
+
+function animate() 
+{
+    requestAnimationFrame( animate );
+	render();		
+	update();
+}
+
+function update()
+{
+	if ( keyboard.pressed("z") ) 
+	{ 
+		// do something
+	}
+	
+	controls.update();
+	stats.update();
+}
+
+function render() 
+{
+	renderer.render( scene, camera );
+}
+
+
+
 function initialize() {
+
 	var mapOptions = {
 		center: new google.maps.LatLng(48.86144,2.333981),
 		zoom: 13,
@@ -71,8 +184,7 @@ function initialize() {
 		var lowTileY = Math.floor(lowY / TILE_SIZE);
 		var highTileY = Math.floor(highY / TILE_SIZE) +1;
 		
-		var canvasGoogMap = $("#tt_canvas")[0];
-		var contextGoogMap = canvasGoogMap.getContext('2d');
+
 		console.log("lowX"+lowX);
 		console.log("highX"+highX);
 		console.log("lowTileX"+lowTileX);
@@ -88,153 +200,21 @@ function initialize() {
 						+ "?x=" + tileX
 						+ "&y=" + tileY
 						+ "&z=" + zoom;
-					img.crossOrigin = "anonymous";
-					
-						console.log(img.src);
-					img.onload = function () {
-						console.log(img.src);
-						contextGoogMap.drawImage(img,cornerX-lowX,cornerY-lowY);
-						texture2.needsUpdate = true;
-					};
+					drawToCanvas(img.src, cornerX-lowX,cornerY-lowY);
 				})();
 			}
 		}
 	});
+	
+	google.maps.event.addListener(map, 'mousedown', function(event) {
+		console.log(event);
+	});
+	
 }
 
 
 
 
-/* 	Three.js  */
-
-// MAIN
-if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
-// standard global variables
-var container, scene, camera, renderer, controls, stats;
-var keyboard = new THREEx.KeyboardState();
-var clock = new THREE.Clock();
-// custom global variables
-var cube;
-
-init();
-animate();
-
-// FUNCTIONS 		
-function init() 
-{
-	// SCENE
-	scene = new THREE.Scene();
-	// CAMERA
-	var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
-	var VIEW_ANGLE = 45, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.1, FAR = 20000;
-	camera = new THREE.PerspectiveCamera( VIEW_ANGLE, ASPECT, NEAR, FAR);
-	scene.add(camera);
-	camera.position.set(0,150,400);
-	camera.lookAt(scene.position);	
-	// RENDERER
-	renderer = new THREE.WebGLRenderer( {antialias:true} );
-	renderer.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
-	container = document.createElement( 'div' );
-	document.body.appendChild( container );
-	container.appendChild( renderer.domElement );
-	// EVENTS
-	THREEx.WindowResize(renderer, camera);
-	THREEx.FullScreen.bindKey({ charCode : 'm'.charCodeAt(0) });
-	// CONTROLS
-	controls = new THREE.TrackballControls( camera );
-	// STATS
-	stats = new Stats();
-	stats.domElement.style.position = 'absolute';
-	stats.domElement.style.bottom = '0px';
-	stats.domElement.style.zIndex = 100;
-	container.appendChild( stats.domElement );
-	// LIGHT
-	var light = new THREE.PointLight(0xffffff);
-	light.position.set(0,250,0);
-	scene.add(light);
-
-	// SKYBOX/FOG
-	var skyBoxGeometry = new THREE.CubeGeometry( 10000, 10000, 10000 );
-	var skyBoxMaterial = new THREE.MeshBasicMaterial( { color: 0x9999ff } );
-	var skyBox = new THREE.Mesh( skyBoxGeometry, skyBoxMaterial );
-    skyBox.flipSided = true; // render faces from inside of the cube, instead of from outside (default).
-	// scene.add(skyBox);
-	scene.fog = new THREE.FogExp2( 0x9999ff, 0.00025 );
-	
-	////////////
-	// CUSTOM //
-	////////////
-	
-	/////// draw text on canvas /////////
-
-	// create a canvas element
-	var canvas1 = document.createElement('canvas');
-	var context1 = canvas1.getContext('2d');
-	context1.font = "Bold 40px Arial";
-	var img = document.getElementById("tt_canvas");
-	context1.drawImage(img,10,10);
-	context1.fillStyle = "rgba(255,0,0,0.95)";
-    context1.fillText('Hello, world!', 0, 50);
-    
-	// canvas contents will be used for a texture
-	var texture1 = new THREE.Texture(canvas1) 
-	texture1.needsUpdate = true;
-      
-    var material1 = new THREE.MeshBasicMaterial( {map: texture1} );
-    material1.transparent = true;
-
-    var mesh1 = new THREE.Mesh(
-        new THREE.PlaneGeometry(canvas1.width, canvas1.height),
-        material1
-      );
-	mesh1.position.set(0,50,0);
-	mesh1.rotation.x = Math.PI / 2;
-    mesh1.doubleSided = true;
-	
-	scene.add( mesh1 );
-	
-	/////// draw image on canvas /////////
-
-
-	
-	// load an image
-
-      
-    var material2 = new THREE.MeshBasicMaterial( {map: texture2} );
-    material2.transparent = true;
-
-    var mesh2 = new THREE.Mesh(
-        new THREE.PlaneGeometry(canvas2.width, canvas2.height),
-        material2
-      );
-	mesh2.position.set(0,50,-50);
-	mesh2.rotation.x = Math.PI / 2;
-    mesh2.doubleSided = true;
-	scene.add( mesh2 );	
-}
-
-function animate() 
-{
-    requestAnimationFrame( animate );
-	render();		
-	update();
-}
-
-function update()
-{
-	if ( keyboard.pressed("z") ) 
-	{ 
-		// do something
-	}
-	
-	controls.update();
-	stats.update();
-}
-
-function render() 
-{
-	renderer.render( scene, camera );
-}
     </script>
   </body>
 </html>

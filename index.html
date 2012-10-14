@@ -28,7 +28,23 @@
 	
 var G = google.maps;
 var proj = new MercatorProjection();
+var directionsService = new google.maps.DirectionsService();
 var TILE_SIZE = 256;
+var timeTravelWPs = new Array();
+var currentZoom = 13;
+var currentScale = Math.pow(2,currentZoom);
+var currentCenterLatLng = new google.maps.LatLng(48.860099,2.333347);
+var currentCenterPoint, currentCenterPix;
+var updateCenterPoint = function(){
+	currentCenterPoint = proj.fromLatLngToPoint(currentCenterLatLng);
+	currentCenterPix = { x: Math.floor(currentCenterPoint.x * currentScale), y: Math.floor(currentCenterPoint.y * currentScale)}
+}
+updateCenterPoint();
+var bounds, sw, ne;
+
+
+var currentMesh;
+var currentWireMesh;
 
 // create a canvas element
 var canvas2 = $("#tt_canvas")[0];
@@ -36,6 +52,8 @@ var context2 = canvas2.getContext('2d');
 // canvas contents will be used for a texture
 var texture2 = new THREE.Texture(canvas2);
 texture2.needsUpdate = true;
+
+var scene = new THREE.Scene();
 
 
 
@@ -79,17 +97,6 @@ texture2.needsUpdate = true;
         }
       }
 
-      Triangle.prototype.draw = function(ctx) {
-		console.log("TODO Triangle.prototype.draw");
-        /*
-		ctx.beginPath()
-        ctx.moveTo(this.a.x, this.a.y)
-        ctx.lineTo(this.b.x, this.b.y)
-        ctx.lineTo(this.c.x, this.c.y)
-        ctx.closePath()
-        ctx.stroke()
-		*/
-      }
 
       function byX(a, b) {
         return b.x - a.x
@@ -220,20 +227,9 @@ texture2.needsUpdate = true;
         /* Yay, we're done! */
         return closed
       }
-/*
-       canvas = document.getElementById("canvas"),
-          ctx = canvas.getContext("2d")
-		  */
-
-
-
-
 
 
 ////////////////////////////////////////////  ---------------   DELAUNAY     END
-
-
-
 
 
 
@@ -250,14 +246,89 @@ var clock = new THREE.Clock();
 // custom global variables
 var cube;
 
-init();
-animate();
+
+
+function getDelaunayGeometry(){
+
+	var geometry = new THREE.Geometry();
+	var  i=0,
+	  vertices = new Array()
+
+	while(i<timeTravelWPs.length) {
+	  x = timeTravelWPs[i].px.x - currentCenterPix.x;
+	  y = timeTravelWPs[i].px.y - currentCenterPix.y;
+	  z = -timeTravelWPs[i].z / 30
+
+
+	vertices[i] = {x: x, y: y, z:z, vi:i};
+	geometry.vertices.push( new THREE.Vector3( x, y, z ) );
+	i++;
+
+	}
+
+	console.time("triangulate")
+	var triangles = triangulate(vertices)
+	console.timeEnd("triangulate")
+
+	i = triangles.length
+
+
+	for ( idx = 0; idx < triangles.length ; idx ++) {
+
+		var face = new THREE.Face3( 
+			triangles[idx].a.vi,
+			triangles[idx].b.vi,
+			triangles[idx].c.vi );
+
+		geometry.faces.push( face );
+		geometry.faceVertexUvs[ 0 ].push( [
+			new THREE.UV( triangles[idx].a.x/512 +0.5, -triangles[idx].a.y/512 +0.5),
+			new THREE.UV( triangles[idx].b.x/512 +0.5, -triangles[idx].b.y/512 +0.5),
+			new THREE.UV( triangles[idx].c.x/512 +0.5, -triangles[idx].c.y/512 +0.5)
+		] );
+
+	}
+	return geometry;
+
+}
+
+
+function updateTimeMap() {
+	console.log("updateTimeMap");
+	scene.remove( currentMesh );
+	scene.remove( currentWireMesh );
+	
+	
+	  
+	var material2 = new THREE.MeshBasicMaterial( {map: texture2} );		
+	
+	var geometry = getDelaunayGeometry();
+	
+	var mesh2 = new THREE.Mesh(
+		geometry,
+		material2
+	  );
+	mesh2.position.set(0,-10,0);
+	mesh2.rotation.x = Math.PI / 2;
+	currentMesh = mesh2;
+	scene.add( mesh2 );
+	
+	
+	var material3 = new THREE.MeshNormalMaterial( {wireframe: true, color:"#ff00ff"} );		
+	var mesh3 = new THREE.Mesh(
+		geometry,
+		material3
+	  );
+	mesh3.position.set(0,-5,0);
+	mesh3.rotation.x = Math.PI / 2;
+	currentWireMesh = mesh3;
+	scene.add( mesh3 );
+}
 
 // FUNCTIONS 		
 function init() 
 {
 	// SCENE
-	scene = new THREE.Scene();
 	// CAMERA
 	var SCREEN_WIDTH = window.innerWidth, SCREEN_HEIGHT = window.innerHeight;
 	var VIEW_ANGLE = 32, ASPECT = SCREEN_WIDTH / SCREEN_HEIGHT, NEAR = 0.01, FAR = 200000;
@@ -291,115 +362,16 @@ function init()
 	
 
 	
-	/////// draw image on canvas /////////
-		  
-		var material2 = new THREE.MeshBasicMaterial( {map: texture2} );
-		//var material2 = new THREE.MeshNormalMaterial( {map: texture2} );		
-		
-		
-///////////////////----------------------------
-		var geometry = new THREE.Geometry();
-		var width=canvas2.width,
-			height=canvas2.height, 
-			segmentsWidth=16, 
-			segmentsheight=16;
-		
-			var ix, iz,
-			width_half = width / 2,
-			height_half = height / 2,
-			gridX = segmentsWidth || 1,
-			gridZ = segmentsheight || 1,
-			gridX1 = gridX + 1,
-			gridZ1 = gridZ + 1,
-			segment_width = width / gridX,
-			segment_height = height / gridZ,
-			normal = new THREE.Vector3( 0, 0, 1 );
-			
-			
-			   var   i = 1024,
-				  vertices = new Array(i),
-				  x, y
 
-			  while(i) {
-				  x = (Math.random() - 0.5)*512
-				  y = (Math.random() - 0.5)*512
-				  z = (Math.random() - 0.5)*512
-
-				vertices[--i] = {x: x, y: y, z:z}
-			  }
-			  
-			   console.time("triangulate")
-			  var triangles = triangulate(vertices)
-			  console.timeEnd("triangulate")
-
-			  i = triangles.length
-			  //TODO
-			  /*
-			  while(i)
-				triangles[--i].draw(ctx)
-				*/
-		
-			
-
-			for ( iz = 0; iz < gridZ1; iz ++ ) {
-
-				for ( ix = 0; ix < gridX1; ix ++ ) {
-
-					var x = ix * segment_width - width_half;
-					var y = iz * segment_height - height_half;
-
-					geometry.vertices.push( new THREE.Vector3( x, - y, Math.random()*x ) );
-
-				}
-
-			}
-
-			for ( iz = 0; iz < gridZ; iz ++ ) {
-
-				for ( ix = 0; ix < gridX; ix ++ ) {
-
-					var a = ix + gridX1 * iz;
-					var b = ix + gridX1 * ( iz + 1 );
-					var c = ( ix + 1 ) + gridX1 * ( iz + 1 );
-					var d = ( ix + 1 ) + gridX1 * iz;
-
-					var face = new THREE.Face3( a, b, c );
-
-					geometry.faces.push( face );
-					geometry.faceVertexUvs[ 0 ].push( [
-						new THREE.UV( 0,0 ),
-						new THREE.UV( 0, 1 ),
-						new THREE.UV( 1, 0 )
-					] );
-
-				}
-
-			}
-				
-		
-///////////////------------------------------------------		
-		
-		
-		
-		
-		//var geometry = new THREE.PlaneGeometry(canvas2.width, canvas2.height,16,16);
-
-
-		var mesh2 = new THREE.Mesh(
-			geometry,
-			material2
-		  );
-		mesh2.position.set(0,-10,0);
-		mesh2.rotation.x = - Math.PI / 2;
-		scene.add( mesh2 );
 		
 		var axes = new THREE.AxisHelper();
 		axes.scale.set( 1, 1, 1 );
 		scene.add( axes );
-
 	
+		animate();
 
 }
+init();
 
 function drawToCanvas(src, posX, posY){
 	// load an image
@@ -440,11 +412,68 @@ function render()
 }
 
 
+var pushDirection = function (start,end){
+	var request = {
+		origin:start,
+		destination:end,
+		travelMode: google.maps.DirectionsTravelMode.WALKING
+	};
+	directionsService.route(request, function(response, status) {
+	  if (status == google.maps.DirectionsStatus.OK) {
+		console.log(response);
+		var steps = response.routes[0].legs[0].steps;
+		currentDuration = 0;
+		for ( idx = 0; idx < steps.length ; idx ++) {
+			var path = steps[idx].path
+			for ( idx2 = 0; idx2 < path.length ; idx2 ++) {
+				(function(){
+					var endLatLng = path[idx2];
+					var endPt = proj.fromLatLngToPoint(endLatLng);
+					var endPix = { x: Math.floor(endPt.x * currentScale), y: Math.floor(endPt.y * currentScale)};
+					timeTravelWPs.push({ 
+						latLng:endLatLng,
+						// YUCK YUCK YUCK
+						z:currentDuration + idx2 * steps[idx].duration.value/path.length,
+						pt:endPt,
+						px:endPix});
+				})();
+			}
+			currentDuration += steps[idx].duration.value;
+		}
+		console.log(timeTravelWPs);
+		updateTimeMap();
+		
+	  }
+	});
+
+
+}
+
+var pushGrid = function(num){
+	var a=0,b=0;
+	while (a<=num) {
+		console.log(a);
+		while (b<=num) {
+			(function(){
+				var lat = (sw.lat()+((a-1)*2.05+1)/num*(ne.lat()-sw.lat()));
+				var lng = (sw.lng()+((b-1)*2.05+1)/num*(ne.lng()-sw.lng()));			
+				console.log("test "+a+" "+b+" "+lat+" "+lng);
+				pushDirection(
+					currentCenterLatLng.toString(),
+					""+lat+","+lng);
+			})();
+			b++;
+		}
+		b=0;
+		a++;
+	}
+}
+
 
 function initialize() {
 
 	var mapOptions = {
-		center: new google.maps.LatLng(48.86144,2.333981),
+		center: currentCenterLatLng,
 		zoom: 13,
 		mapTypeId: google.maps.MapTypeId.ROADMAP
 	};
@@ -452,33 +481,28 @@ function initialize() {
 	mapOptions);
 	
 	google.maps.event.addListener(map, 'idle', function() {
-		var bounds = map.getBounds();
-		var sw = bounds.getSouthWest();
-		var ne = bounds.getNorthEast();
-		var center = map.getCenter();
-		var zoom = map.getZoom();
-		$("#coords").text("lat: "+sw.lat()+" to "+ne.lat());
-		//$("#tt_canvas").attr("src","http://maps.googleapis.com/maps/api/staticmap?center="+center+"&zoom="+zoom+"&size=512x512&sensor=false&scale=2");
+		bounds = map.getBounds();
+		sw = bounds.getSouthWest();
+		ne = bounds.getNorthEast();
+		currentCenterLatLng = map.getCenter();
+		updateCenterPoint();
+		currentZoom = map.getZoom();
 		
 		
-		var scale = Math.pow(2,zoom);
-		var centerPt = proj.fromLatLngToPoint(center);
+		currentScale = Math.pow(2,currentZoom);
+		timeTravelWPs = new Array();
+		pushGrid(2);
 		
-		var lowX = Math.floor(centerPt.x * scale -(512/2));
-		var highX = Math.floor(centerPt.x * scale +(512/2));
-		var lowY = Math.floor(centerPt.y * scale -(512/2));
-		var highY = Math.floor(centerPt.y * scale +(512/2));
+		var lowX = Math.floor(currentCenterPix.x -(512/2));
+		var highX = Math.floor(currentCenterPix.x +(512/2));
+		var lowY = Math.floor(currentCenterPix.y -(512/2));
+		var highY = Math.floor(currentCenterPix.y +(512/2));
 		
 		var lowTileX = Math.floor(lowX / TILE_SIZE);
 		var highTileX = Math.floor(highX / TILE_SIZE) +1;
 		var lowTileY = Math.floor(lowY / TILE_SIZE);
 		var highTileY = Math.floor(highY / TILE_SIZE) +1;
 		
-
-		console.log("lowX"+lowX);
-		console.log("highX"+highX);
-		console.log("lowTileX"+lowTileX);
-		console.log("highTileX"+highTileX);
 		
 		for ( tileX = lowTileX; tileX < highTileX ; tileX ++){
 			for ( tileY = lowTileY; tileY < highTileY ; tileY ++){
@@ -489,7 +513,7 @@ function initialize() {
 					img.src = "http://mt1.googleapis.com/vt"
 						+ "?x=" + tileX
 						+ "&y=" + tileY
-						+ "&z=" + zoom;
+						+ "&z=" + currentZoom;
 					drawToCanvas(img.src, cornerX-lowX,cornerY-lowY);
 				})();
 			}
